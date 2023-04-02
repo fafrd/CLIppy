@@ -45,18 +45,27 @@ func main() {
 
 	// Create the named pipe
 	pipePath := "/tmp/clippy-pipe"
-	os.Remove(pipePath) // Remove the named pipe if it already exists
-
+	os.Remove(pipePath) // Remove if already exists
 	err := syscall.Mkfifo(pipePath, 0666)
 	if err != nil {
 		log.Fatal("Error creating pipe: ", err)
 	}
 
-	// Open the named pipe for reading
+	// Open the pipe for reading
 	pipe, err := os.OpenFile(pipePath, os.O_RDONLY, os.ModeNamedPipe)
 	if err != nil {
 		log.Fatal("Error opening pipe: ", err)
 	}
+
+	// clean up on ctrl-c
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Println("Cleaning up...")
+		os.Remove(pipePath)
+		os.Exit(0)
+	}()
 
 	// Read from the named pipe until null character is encountered
 	data := make([]byte, 1)
@@ -111,15 +120,4 @@ func main() {
 	//}
 	//fmt.Printf("%s\n", intepretedGoal)
 
-}
-
-func cleanupOnExit(pipePath string) {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigs
-		os.Remove(pipePath)
-		os.Exit(0)
-	}()
 }
